@@ -1,0 +1,142 @@
+package aero.sita.gsl.exportmovement.service;
+
+import java.math.BigDecimal;
+
+import org.apache.log4j.Logger;
+import org.jmock.integration.junit4.JUnit4Mockery;
+import org.jmock.lib.legacy.ClassImposteriser;
+import org.jmock.Mockery;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Matchers;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import aero.sita.gsl.common.configuration.GslConfig;
+import aero.sita.gsl.exportmovement.bean.ExportMovementRequest;
+import aero.sita.gsl.exportmovement.dao.BaggageInfoDetailsDAO;
+import aero.sita.gsl.exportmovement.dao.CheckinTicketDAO;
+import aero.sita.gsl.exportmovement.dao.IGetAPIDataDAO;
+import aero.sita.gsl.exportmovement.dao.IGetAPISDataDAO;
+import aero.sita.gsl.exportmovement.dao.IGetDCSDataDAO;
+import aero.sita.gsl.exportmovement.dao.IGetPrimaryLineInstructionDepartmentsDAO;
+import aero.sita.gsl.exportmovement.model.APIData;
+import aero.sita.gsl.exportmovement.model.EMRContext;
+import aero.sita.gsl.exportmovement.model.EMREndpointConfiguration;
+import aero.sita.gsl.refdata.api.enumeration.LocationCodeType;
+import aero.sita.gsl.refdata.api.model.ILocation;
+import aero.sita.gsl.refdata.api.model.LocationKey;
+import aero.sita.gsl.refdata.api.request.location.LocationGetRequestImpl;
+import aero.sita.gsl.refdata.api.service.IActionCodeService;
+import aero.sita.gsl.refdata.api.service.ILocationService;
+import aero.sita.gsl.refdata.api.service.IReasonCodeService;
+import aero.sita.pts.bcs.common.referral.ReferralService;
+import aero.sita.pts.bcs.idetect.db.pnr.dao.TravellerPNRDAO;
+import aero.sita.pts.gsl.eventdb.api.model.traveller.ITraveller;
+import aero.sita.pts.gsl.eventdb.api.model.traveller.TravellerImpl;
+import aero.sita.pts.gsl.eventdb.core.response.flight.FlightImpl;
+import junit.framework.TestCase;
+
+public class ProcessorHelperServiceImplTest extends TestCase {
+
+	/** Logger object for this class. */
+	private static final Logger LOG = Logger.getLogger(ProcessorHelperServiceImplTest.class);
+
+	private Mockery context;
+
+	protected TravellerPNRDAO pnrDAO;
+
+	protected IGetDCSDataDAO getDCSDataDAO;
+
+	protected BaggageInfoDetailsDAO baggageInfoDetailsDAO;
+
+	protected CheckinTicketDAO checkinTicketDAO;
+
+	protected IGetAPIDataDAO getAPIDataDAO;
+
+	protected GslConfig gslConfig;
+
+	protected ILocationService locationDataService;
+
+	protected ReferralService oldReferralService;
+
+	protected IActionCodeService actionCodeService;
+
+	protected IReasonCodeService reasonCodeService;
+
+	protected IGetPrimaryLineInstructionDepartmentsDAO getPrimaryLineInstructionDepartmentsDAO;
+
+	protected IGetAPISDataDAO getAPISDataDAO;
+
+	private ProcessorHelperServiceImpl processorHelperServiceImpl;
+
+	private EMRContext emrContext;
+
+	private EMREndpointConfiguration emrEndpointConfiguration;
+
+	 private ILocation flightOrigin;
+
+	@Mock
+	private ITraveller iTraveller;
+
+	@Override
+	@Before
+	public void setUp() throws Exception {
+		context = new JUnit4Mockery() {
+			{
+				setImposteriser(ClassImposteriser.INSTANCE);
+			}
+
+		};
+		processorHelperServiceImpl = new ProcessorHelperServiceImpl();
+		locationDataService =  Mockito.mock(ILocationService.class);
+		flightOrigin = Mockito.mock(ILocation.class);
+		gslConfig = Mockito.mock(GslConfig.class);
+		getAPIDataDAO = Mockito.mock(IGetAPIDataDAO.class);
+		emrContext = new EMRContext();
+		emrEndpointConfiguration = new EMREndpointConfiguration();
+		ReflectionTestUtils.setField(processorHelperServiceImpl, "getAPIDataDAO", getAPIDataDAO);
+		ReflectionTestUtils.setField(processorHelperServiceImpl, "gslConfig", gslConfig);
+		ReflectionTestUtils.setField(processorHelperServiceImpl, "locationDataService", locationDataService);
+	}
+
+	@Test
+	public void testtoTravellerInformationType() {
+
+		TravellerImpl traveller = new TravellerImpl();
+		traveller.setTravellerId(new BigDecimal(888888L));
+		traveller.setFlightSegmentId(new BigDecimal(9999L));
+		traveller.setApiId(new BigDecimal(888888L));
+		emrContext.setTraveller(traveller);
+
+		ExportMovementRequest exportMovementRequest = new ExportMovementRequest();
+		exportMovementRequest.setAppFlag(false);
+		emrContext.setExportMovementRequest(exportMovementRequest);
+
+		APIData apiData = new APIData();
+		Mockito.when(getAPIDataDAO.getAPIData(Matchers.anyLong(), Matchers.anyLong())).thenReturn(apiData);
+
+		Mockito.when(gslConfig.getValueAsBoolean("hide.export.movement.addtional.information")).thenReturn(false);
+		processorHelperServiceImpl.toTravellerInformationType(emrContext, emrEndpointConfiguration);
+	}
+
+	@Test
+	public void testtoTravellerInformationType_APIDataNull() {
+
+		TravellerImpl traveller = new TravellerImpl();
+		traveller.setTravellerId(new BigDecimal(888888L));
+		emrContext.setTraveller(traveller);
+		FlightImpl flight = new FlightImpl();
+		Mockito.when(locationDataService
+                .getLocationByKey(new LocationGetRequestImpl(new LocationKey(flight.getOriginLocationCode(), LocationCodeType.UNKNOWN))).getResult()).thenReturn(flightOrigin);
+		processorHelperServiceImpl.toTravellerInformationType(emrContext, emrEndpointConfiguration);
+	}
+
+	@After
+	public void tearDown() {
+		getAPIDataDAO = null;
+		locationDataService =null;
+	}
+}
